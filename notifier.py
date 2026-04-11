@@ -1,7 +1,6 @@
 import asyncio
 import html
 import os
-
 from telegram import Bot
 from telegram.constants import ParseMode
 
@@ -9,23 +8,40 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 
-def build_message(project: dict) -> str:
-    title = html.escape(project.get("title", "—"))
-    url = project.get("url", "")
-    description = html.escape(project.get("description", "—"))
-    published_at = html.escape(project.get("published_at", "—"))
-    budget = html.escape(project.get("budget", "—"))
-    applicants_count = html.escape(project.get("applicants_count", "—"))
+def _clean(text: str, limit: int | None = None) -> str:
+    text = (text or "—").strip()
+    text = " ".join(text.split())
+    if limit and len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    return html.escape(text)
 
-    return (
-        f"🆕 <b>مشروع جديد على نفذلي</b>\n\n"
-        f"📌 <b>{title}</b>\n"
-        f"📝 <b>تفاصيل المشروع:</b> {description}\n"
-        f"🕒 <b>تاريخ النشر:</b> {published_at}\n"
-        f"💰 <b>الميزانية:</b> {budget}\n"
-        f"👥 <b>عدد المتقدمين:</b> {applicants_count}\n"
-        f"🔗 <a href='{url}'>فتح المشروع</a>"
-    )
+
+def build_message(project: dict) -> str:
+    title = _clean(project.get("title"))
+    url = project.get("url", "").strip()
+    description = _clean(project.get("description"), 400)
+    published_at = _clean(project.get("published_at"))
+    budget = _clean(project.get("budget"))
+    applicants_count = _clean(project.get("applicants_count"))
+
+    lines = [
+        "🚀 <b>مشروع جديد على نفذلي</b>",
+        "",
+        f"🧩 <b>العنوان:</b> {title}",
+        "",
+        f"📝 <b>الوصف:</b> {description}",
+        "",
+        "📊 <b>معلومات سريعة</b>",
+        f"💰 <b>الميزانية:</b> {budget}",
+        f"👥 <b>عدد المتقدمين:</b> {applicants_count}",
+        f"📅 <b>تاريخ النشر:</b> {published_at}",
+    ]
+
+    if url:
+        safe_url = html.escape(url, quote=True)
+        lines += ["", f'🔗 <a href="{safe_url}">فتح المشروع</a>']
+
+    return "\n".join(lines)
 
 
 async def send_message(text: str):
