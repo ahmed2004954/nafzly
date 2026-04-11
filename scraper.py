@@ -11,16 +11,51 @@ HEADERS = {
 }
 
 
+def _get_soup(url: str) -> BeautifulSoup:
+    response = requests.get(url, headers=HEADERS, timeout=15)
+    response.raise_for_status()
+    return BeautifulSoup(response.text, "lxml")
+
+
+def _find_section_by_heading(soup: BeautifulSoup, heading_text: str):
+    heading = soup.find(string=lambda s: s and heading_text in s)
+    if not heading:
+        return None
+
+    section = heading.parent
+    while section is not None:
+        classes = section.get("class", [])
+        if "main-nafez-box-styles" in classes:
+            return section
+        section = section.parent
+    return None
+
+
+def _extract_card_rows(card_section) -> dict[str, str]:
+    details = {}
+    if card_section is None:
+        return details
+
+    for row in card_section.select("div.col-12.row[style*='padding:4px 5px']"):
+        columns = row.find_all("div", recursive=False)
+        if len(columns) < 2:
+            continue
+
+        label = columns[0].get_text(" ", strip=True)
+        value = columns[1].get_text(" ", strip=True)
+        if label and value:
+            details[label] = value
+
+    return details
+
+
 def fetch_projects() -> list[dict]:
     """
     Returns a list of project dicts, newest first.
     Assumption from plan: keep returned fields aligned to the implementation
     block (`id`, `title`, `url`, `raw`) even though the prose mentions more.
     """
-    response = requests.get(URL, headers=HEADERS, timeout=15)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "lxml")
+    soup = _get_soup(URL)
 
     projects = []
     # NOTE: CSS selectors must be verified against live HTML on first run.
@@ -67,3 +102,25 @@ def fetch_projects() -> list[dict]:
             unique.append(project)
 
     return unique
+
+
+def enrich_project(project: dict) -> dict:
+    """
+    Fetches the project detail page and augments the project dict with:
+    description, published_at, budget, applicants_count.
+    """
+    soup = _get_soup(project["url"])
+
+    details_section = _find_section_by_heading(soup, "تفاصيل المشروع")
+    description_node = details_section.select_one("h2") if details_section else None
+    description = description_node.get_text(" ", strip=True) if description_node else ""
+
+    card_section = _find_section_by_heading(soup, "بطاقة المشروع")
+    card_details = _extract_card_rows(card_section)
+
+    enriched = dict(project)
+    enriched["description"] = description
+    enriched["published_at"] = card_details.get("تاريخ النشر", "")
+    enriched["budget"] = card_details.get("الميزانية", "")
+    enriched["applicants_count"] = card_details.get("عدد المتقدمين", "")
+    return enriched

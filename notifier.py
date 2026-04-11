@@ -1,4 +1,5 @@
 import asyncio
+import html
 import os
 
 from telegram import Bot
@@ -9,13 +10,20 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 
 def build_message(project: dict) -> str:
-    title = project.get("title", "—")
+    title = html.escape(project.get("title", "—"))
     url = project.get("url", "")
-    raw = project.get("raw", "")
+    description = html.escape(project.get("description", "—"))
+    published_at = html.escape(project.get("published_at", "—"))
+    budget = html.escape(project.get("budget", "—"))
+    applicants_count = html.escape(project.get("applicants_count", "—"))
 
     return (
         f"🆕 <b>مشروع جديد على نفذلي</b>\n\n"
         f"📌 <b>{title}</b>\n"
+        f"📝 <b>تفاصيل المشروع:</b> {description}\n"
+        f"🕒 <b>تاريخ النشر:</b> {published_at}\n"
+        f"💰 <b>الميزانية:</b> {budget}\n"
+        f"👥 <b>عدد المتقدمين:</b> {applicants_count}\n"
         f"🔗 <a href='{url}'>فتح المشروع</a>"
     )
 
